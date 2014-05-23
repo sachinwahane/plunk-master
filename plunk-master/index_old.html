@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8'>
+  <meta content='width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0' name='viewport'>
+
+  <title>dc.js Experiment</title>
+
+  <script src='d3.js' type='text/javascript'></script>
+  <script src='crossfilter.js' type='text/javascript'></script>
+  <script src='dcNew.js' type='text/javascript'></script>
+  <script src='jquery-1.9.1.min.js' type='text/javascript'></script>
+  <script src='bootstrap.min.js' type='text/javascript'></script>
+
+  <link href='bootstrap.min.css' rel='stylesheet' type='text/css'>
+  <link href='dc.css' rel='stylesheet' type='text/css'>
+
+  <style type="text/css"></style>
+</head>
+
+
+
+
+
+<body>
+
+
+<div class='container' style='font: 12px sans-serif;'>
+
+
+<div class='row'>						                                   
+<div class='span6' id='dc-gmp-chart'>
+<h4>Distribution of GMP</h4>
+</div>
+<div class='span6' id='dc-scatter-plot'>
+<h4>GMP by Population</h4>
+</div>
+</div>
+
+
+  <div class='row'>
+      <table class='table table-hover' id='dc-table-graph'>
+        <thead>
+          <tr class='header'>
+            <th>Geographical Name</th>
+            <th>Gross Metropolitan Product</th>
+            <th>Year</th>
+            <th>Population (millions)</th>
+            <th>Region</th>
+          </tr>
+        </thead>
+      </table>
+	</div>
+  </div>
+
+
+  
+  
+  
+  
+  
+  
+  
+<script>
+/**********************************
+* Step0: Load data from json file *
+**********************************/
+// load data from a csv file
+d3.json("data.json", function (data) {
+
+  data.forEach(function(d) { 
+    d.name = d.GeoName;
+    d.gmp = +d.GMP;
+    d.year = +d.Yr;
+    d.pop = +d.POP;
+    d.rgn = d.Region;  
+  });
+  
+  
+
+ 
+
+
+  
+
+
+/******************************************************
+* Step1: Create the dc.js chart objects & ling to div *
+******************************************************/
+
+  var dataTable = dc.dataTable("#dc-table-graph");
+  var gmpChart = dc.barChart("#dc-gmp-chart");
+  var sctrPlot =  dc.scatterPlot("#dc-scatter-plot");
+  
+/****************************************
+* 	Run the data through crossfilter    *
+****************************************/
+
+  var facts = crossfilter(data);  // Gets our 'facts' into crossfilter
+
+/******************************************************
+* Create the Dimensions                               *
+* A dimension is something to group or filter by.     *
+* Crossfilter can filter by exact value, or by range. *
+******************************************************/
+
+  // For datatable
+var popDimension = facts.dimension(function (d) { return d.pop; }); // group or filter by time
+
+var gmpValue = facts.dimension(function (d) {return d.gmp; });								//add:3
+
+var gmpValueGroupCount = gmpValue.group().reduceCount(function(d) { return d.gmp; }); 			// counts, add:4
+
+var scatDimension2 = facts.dimension(function (d) {return [d.pop, d.gmp];});
+
+var scatSumGroup2 = scatDimension2.group().reduceCount(function (d) { return d.gmp; });
+
+ 
+
+/***************************************
+* 	Step4: Create the Visualisations   *
+***************************************/
+
+
+gmpChart.width(480)
+.height(300)
+.margins({top: 10, right: 10, bottom: 20, left: 40})
+.dimension(gmpValue)
+.group(gmpValueGroupCount)
+.transitionDuration(500)
+.centerBar(true)
+.gap(2)
+//.filter([3, 5])
+.x(d3.scale.log().nice().domain([100, 100000000]))
+.elasticY(true)
+.xAxis().tickFormat();						//add:5
+
+
+  sctrPlot.width(480)
+    .height(300)
+    .margins({top: 10, right: 10, bottom: 20, left: 40})
+    .x(d3.scale.log().domain([.05, 30]))
+    .y(d3.scale.log().domain([100, 100000000]))
+     //.group()
+     .group(scatSumGroup2)
+    //.elasticX(true)
+    //.elasticY(true)
+     .dimension(scatDimension2);
+
+
+
+
+
+  // Table of earthquake data
+  dataTable.width(250)
+    .height(500)
+    .dimension(popDimension)
+	.group(function(d) { return "List of cities corresponding to the filters"
+	 })
+	.size(15)							// number of rows to return
+    .columns([
+      function(d) { return d.name; },
+      function(d) { return d.gmp; },
+      function(d) { return d.year; },
+      function(d) { return d.pop; },
+      function(d) { return d.rgn; },
+    ])
+    .sortBy(function(d){ return d.pop; })
+    .order(d3.ascending);
+
+/****************************
+* Step6: Render the Charts  *
+****************************/
+			
+  dc.renderAll();
+  
+});
+  
+</script>
+    
+</body>
+</html>

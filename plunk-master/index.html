@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8'>
+  <meta content='width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0' name='viewport'>
+
+  <title>dc.js Experiment</title>
+
+  <script src='d3.js' type='text/javascript'></script>
+  <script src='crossfilter.js' type='text/javascript'></script>
+  <script src='dcNew.js' type='text/javascript'></script>
+  <script src='jquery-1.9.1.min.js' type='text/javascript'></script>
+  <script src='bootstrap.min.js' type='text/javascript'></script>
+
+  <link href='bootstrap.css' rel='stylesheet' type='text/css'>
+  <link href='dc.css' rel='stylesheet' type='text/css'>
+
+  <style type="text/css"></style>
+</head>
+
+
+
+
+
+<body>
+
+
+<div class='container' style='font: 12px sans-serif;'>
+
+<!-- layout for line chart-->
+<div class="row">
+	
+	<div class="col-sm-8 col-sm-offset-2" id="dc-line-chart">
+		<h4>GMP By Year</h4>
+	</div>
+	
+</div>
+
+<div class="row">
+	<div class="col-sm-8 col-sm-offset-2" id="dc-scatter-plot">
+		<h4>GMP by Population</h4>
+	</div>
+</div>
+
+<div class="row">
+	<div class="col-sm-6" >
+		
+	</div>
+	<div class="col-sm-6">
+		<div class="row">
+			<div class="col-sm-12" id="dc-pie-chart">
+				<h4>Region Pie Chart</h4>
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-sm-12" id="dc-gmp-chart">
+				<h4>Distribution of GMP</h4>
+			</div>
+		</div>
+		
+	</div>
+</div>
+</div>
+
+
+  <div class='row'>
+      <table class='table table-hover' id='dc-table-graph'>
+        <thead>
+          <tr class='header'>
+            <th>Geographical Name</th>
+            <th>Gross Metropolitan Product</th>
+            <th>Year</th>
+            <th>Population (millions)</th>
+            <th>Region</th>
+          </tr>
+        </thead>
+      </table>
+	</div>
+  </div>
+
+<script>
+/**********************************
+* Step0: Load data from json file *
+**********************************/
+// load data from a csv file
+d3.json("data.json", function (data) {
+
+  data.forEach(function(d) { 
+    d.name = d.GeoName;
+    d.gmp = +d.GMP;
+    d.year = +d.Yr;
+    d.pop = +d.POP;
+    d.rgn = d.Region;  
+  });
+
+/******************************************************
+* Step1: Create the dc.js chart objects & ling to div *
+******************************************************/
+
+  var dataTable = dc.dataTable("#dc-table-graph");
+  var gmpChart = dc.barChart("#dc-gmp-chart");
+  var sctrPlot =  dc.compositeChart("#dc-scatter-plot"); // scatterPlot
+  var piechart = dc.pieChart("#dc-pie-chart");
+  var gmpByYearChart = dc.lineChart("#dc-line-chart");
+/****************************************
+* 	Run the data through crossfilter    *
+****************************************/
+
+  var facts = crossfilter(data);  // Gets our 'facts' into crossfilter
+
+/******************************************************
+* Create the Dimensions                               *
+* A dimension is something to group or filter by.     *
+* Crossfilter can filter by exact value, or by range. *
+******************************************************/
+
+  // For datatable
+var popDimension = facts.dimension(function (d) { return d.pop; }); // group or filter by time
+
+var gmpValue = facts.dimension(function (d) {return d.gmp; });								//add:3
+
+var gmpValueGroupCount = gmpValue.group().reduceCount(function(d) { return d.gmp; }); 			// counts, add:4
+
+var scatDimension2 = facts.dimension(function (d) {return [d.pop, d.gmp, d.name];});
+
+var scatSumGroup2 = scatDimension2.group().reduceCount(function (d) { return d.gmp; });
+
+var cityGroup = scatDimension2.group().reduceCount(function (d) { return d.name;});
+
+/***************************************
+* 	Step4: Create the Visualisations   *
+***************************************/
+
+
+gmpChart.width(680)
+.height(300)
+.margins({top: 10, right: 10, bottom: 20, left: 40})
+.dimension(gmpValue)
+.group(gmpValueGroupCount)
+.transitionDuration(500)
+.centerBar(true)
+.gap(10)
+
+
+//.filter([3, 5])
+.x(d3.scale.log().nice().domain([1000, 100000000]))
+.elasticY(true)
+.xAxis().tickFormat();						//add:5
+
+
+  sctrPlot.width(680)
+    .height(300)
+    .margins({top: 10, right: 10, bottom: 20, left: 40})
+    .x(d3.scale.log().domain([.02, 100000]))
+    .y(d3.scale.log().domain([100, 100000000]))
+     //.group()
+     .dimension(scatDimension2)
+     //.group(scatSumGroup2)
+    //.elasticX(true)
+    //.elasticY(true)
+    .brushOn(false)
+    
+    .renderlet(colorRenderlet)
+    // .title(function (d){return d.value;})
+    // .xAxis().ticks(5,function(d) { return 10 + formatPower(Math.round(Math.log(d) / Math.LN10)); })
+
+     .legend(dc.legend().x(70).y(10).itemHeight(13).gap(5))
+     .compose([
+            dc.scatterPlot(sctrPlot)
+                .group(scatSumGroup2, "Blue Group")
+                //.filter(function (d){return d.name;})
+                .colorAccessor(function(d, i){return i;})
+                .colors("blue"),
+            dc.scatterPlot(sctrPlot)
+            	.margins({top: 5, right: 20, bottom: 30, left: 50})
+                .group(cityGroup, "Red Group")
+                .colors("red")
+                .valueAccessor(function (d) { return d.key[1] + 5; })]);
+     //.yAxis().ticks(5,function(d) { return 10 + formatPower(Math.round(Math.log(d) / Math.LN10)); });
+    // .transitionDuration(500);
+
+
+
+
+  // Table of earthquake data
+  dataTable.width(225)
+    .height(500)
+    .dimension(popDimension)
+
+	.group(function(d) { return "List of cities corresponding to the filters"
+	 })
+
+  .transitionDuration(500)
+	.size(15)							// number of rows to return
+    .columns([
+      function(d) { return d.name; },
+      function(d) { return d.gmp; },
+      function(d) { return d.year; },
+      function(d) { return d.pop; },
+      function(d) { return d.rgn; },
+    ])
+    .sortBy(function(d){ return d.pop; })
+    .order(d3.ascending);
+
+  //Region Pie Chart
+
+  var regionDimension = facts.dimension(function (d){ return d.rgn;});
+  var regionDimensionGroup = regionDimension.group();
+  piechart.width(250)
+  	.height(220)
+  	.radius(80)
+  	.innerRadius(10)
+  	.dimension(regionDimension)
+  	.group(regionDimensionGroup)
+  	.title(function (d){return d.value;});
+
+  //line chart by year
+
+  var yrdim = facts.dimension(function (d){return d.year;})
+  var gmpByYear = yrdim.group().reduceSum(function (d){return d.gmp;});
+
+  gmpByYearChart.width(680)
+  	.height(300)
+  	.margins({top: 10, right: 10, bottom: 20, left: 70})
+	.dimension(yrdim)
+	.group(gmpByYear)
+	.transitionDuration(500)
+	.brushOn(false)
+	.x(d3.scale.linear().nice().domain([2001, 2013]))
+	.y(d3.scale.linear().domain([18000000,30000000]))
+	.title(function (d){ return "Year : "+d.key+"\n"+"GMP : "+d.value;})
+	.xAxis();
+	
+
+/****************************
+* Step6: Render the Charts  *
+****************************/
+			
+  dc.renderAll();
+
+});
+
+ var colorRenderlet = function (_chart) {
+
+    function setStyle(selection, keyName) {
+        selection.style("fill", "#808080")
+        .style("opacity", "0.1")
+        .on("mouseover", function(d) {
+          
+          var dt = d.key;
+            var ct = alphaOnly(dt);
+            d.key = alphaOnly(dt);
+           //selection.style("fill", "#FF0000")
+          // alert(d.key);
+          
+           selection.filter(function (d) { return d.key == ct;})
+           .each(function (d){
+                  d3.select(this).style("fill", "blue")
+                  .style("opacity", "50")
+                   //alert(ct);
+                  })
+           })
+        .on("mouseout", function (d){
+          selection.style("fill", "#808080")
+          .style("opacity", "0.1")
+        });
+    }
+    // set the fill attribute for the bars
+    setStyle(_chart
+            .selectAll("g")
+            .selectAll("path.symbol")
+        , "layer"
+    );
+    // set the fill attribute for the legend
+   
+}
+
+var superscript = "⁰¹²³⁴⁵⁶⁷⁸⁹",
+    formatPower = function(d) { return (d + "").split("").map(function(c) { return superscript[c]; }).join(""); };
+
+function alphaOnly(a){
+  var alpha = '';
+  
+    for (var i = 0; i < a.length; i++) {
+        if (a[i] >= 'A' && a[i] <= 'z') alpha += a[i];
+    }
+    return alpha;
+  alert(alpha);
+}
+</script>
+    
+</body>
+</html>
